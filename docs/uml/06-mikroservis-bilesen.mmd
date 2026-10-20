@@ -1,0 +1,41 @@
+flowchart LR
+  U["Misafir / Otel personeli"]
+  MQ[["RabbitMQ<br/>booking.events exchange<br/>notification queue"]]
+  CDB[("core-db<br/>oda / misafir / rezervasyon")]
+  NDB[("notification-db<br/>bildirim / event kimligi")]
+
+  subgraph CORE["Secilen final: hotel-core service - bagimsiz Spring Boot uygulamasi"]
+    CAPI["Core REST API"]
+    CAT["Oda / oda tipi / misafir"]
+    BOOK["Musaitlik ve rezervasyon"]
+    PAY["Fiyatlandirma / odeme simulasyonu"]
+    STAY["Check-in / Check-out"]
+    REM["Upcoming stay scheduler"]
+    PUB["Event publisher"]
+  end
+
+  subgraph NOTIFY["notification-service - bagimsiz Spring Boot uygulamasi"]
+    NAPI["Notification REST API"]
+    CON["Event consumer"]
+    DEL["Bildirim simulasyonu ve kaydi"]
+  end
+
+  U -->|"HTTP: otel islemleri"| CAPI
+  U -->|"HTTP: bildirim gecmisi"| NAPI
+  CAPI -->|"oda / misafir CRUD"| CAT
+  CAPI -->|"ara / olustur / degistir / iptal"| BOOK
+  CAPI -->|"check-in / check-out"| STAY
+  BOOK -->|"oda ve misafir bilgisi"| CAT
+  BOOK -->|"fiyat / simule odeme"| PAY
+  BOOK -->|"rezervasyon olayi"| PUB
+  STAY -->|"konaklama olayi"| PUB
+  REM -->|"UpcomingStay"| PUB
+  CAT -->|"SQL"| CDB
+  BOOK -->|"SQL: overlap constraint"| CDB
+  PAY -->|"SQL: odeme sonucu"| CDB
+  STAY -->|"SQL"| CDB
+  PUB -->|"AMQP publish"| MQ
+  MQ -->|"AMQP consume"| CON
+  CON -->|"teslim / tekrar dene"| DEL
+  DEL -->|"SQL: idempotent kayit"| NDB
+  NAPI -->|"SQL: gecmisi oku"| NDB

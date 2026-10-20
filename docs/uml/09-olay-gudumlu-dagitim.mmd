@@ -1,0 +1,29 @@
+flowchart LR
+  CLIENT["Istemci cihazi<br/>Tarayici / Postman"]
+
+  subgraph HOST["Dagitik konteyner ortami - ornek Docker Compose"]
+    GW["api-gateway"]
+    CMD["booking-command-saga"]
+    QRY["availability-query-projector"]
+    PAY["payment-worker"]
+    NOTIFY["notification-worker"]
+    MQ[["event-broker<br/>RabbitMQ"]]
+    WDB[("booking-write-db")]
+    RDB[("availability-read-db")]
+    PDB[("payment-db")]
+    NDB[("notification-db")]
+  end
+
+  CLIENT -->|"HTTP komut / sorgu"| GW
+  GW -->|"HTTP rezervasyon komutu"| CMD
+  GW -->|"HTTP musaitlik sorgusu"| QRY
+  CMD -->|"SQL: hold / confirm / overlap denetimi"| WDB
+  CMD -->|"AMQP olay yayinla"| MQ
+  MQ -->|"PaymentRequested"| PAY
+  PAY -->|"SQL: simule sonuc"| PDB
+  PAY -->|"PaymentSucceeded / Failed"| MQ
+  MQ -->|"saga devam et"| CMD
+  MQ -->|"confirmed / cancelled"| QRY
+  QRY -->|"projection guncelle / oku"| RDB
+  MQ -->|"bildirim olayi"| NOTIFY
+  NOTIFY -->|"SQL: teslim kaydi"| NDB

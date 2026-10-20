@@ -1,0 +1,16 @@
+@startuml
+title Modular Monolith - Deployment View
+skinparam shadowing false
+node "User Device" as Client {
+  artifact "Browser / Postman" as UI
+}
+node "Docker Host" as Host {
+  node "hotel-app container" as App {
+    artifact "hotel-app.jar\nSpring Boot" as Jar
+  }
+  database "postgres container\nhotel database" as DB
+}
+UI --> Jar : HTTPS/REST
+Jar --> DB : TCP/JDBC
+@enduml
+

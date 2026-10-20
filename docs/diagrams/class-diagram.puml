@@ -1,0 +1,287 @@
+@startuml
+title Hotel Management and Reservation System - Integrated Design Class Diagram
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+hide empty members
+
+package "Presentation" {
+  class ReservationController <<boundary>> {
+    +search(criteria): List<Room>
+    +create(command): BookingConfirmation
+    +modify(id, command): BookingConfirmation
+    +cancel(id): void
+  }
+  class RoomAdminController <<boundary>>
+  class GuestController <<boundary>>
+  class StayController <<boundary>> {
+    +checkIn(reservationId): void
+    +checkOut(reservationId): Receipt
+  }
+}
+
+package "Application" {
+  class BookingFacade <<Facade, GRASP Controller>> {
+    +search(criteria): List<Room>
+    +createAndPay(command): BookingConfirmation
+    +modify(id, command): BookingConfirmation
+    +cancel(id): void
+  }
+  class AvailabilityService {
+    +searchAvailable(criteria): List<Room>
+    +assertNoOverlap(roomId, period): void
+  }
+  class PricingService {
+    +quote(roomType, period, ratePlan, services): Money
+  }
+  class PaymentService {
+    +charge(amount, paymentData): Payment
+  }
+  class RoomManagementService
+  class GuestService
+  class StayService {
+    +checkIn(reservationId): void
+    +checkOut(reservationId): Receipt
+  }
+  class ReservationEventPublisher <<Subject>> {
+    +attach(observer): void
+    +detach(observer): void
+    +publish(event): void
+  }
+}
+
+package "Domain" {
+  class Guest <<entity>> {
+    +id: UUID
+    +fullName: String
+    +email: String
+  }
+  class GuestPreference <<value object>> {
+    +key: String
+    +value: String
+  }
+  class RoomType <<entity>> {
+    +id: UUID
+    +name: String
+    +capacity: int
+    +baseNightlyRate: Money
+  }
+  class Room <<entity>> {
+    +id: UUID
+    +number: String
+    +floor: int
+    +status: RoomStatus
+    +markOccupied(): void
+    +markCleaning(): void
+    +markAvailable(): void
+  }
+  class StayPeriod <<value object>> {
+    +checkIn: LocalDate
+    +checkOut: LocalDate
+    +nights(): long
+    +overlaps(other): boolean
+  }
+  class Reservation <<aggregate root>> {
+    +id: UUID
+    +status: ReservationStatus
+    +quotedTotal: Money
+    +confirm(payment): void
+    +modify(period): void
+    +cancel(): void
+    +checkIn(): void
+    +complete(): void
+    +markPaymentFailed(): void
+  }
+  class Payment <<entity>> {
+    +id: UUID
+    +amount: Money
+    +status: PaymentStatus
+    +providerReference: String
+  }
+  class AdditionalService <<entity>> {
+    +id: UUID
+    +name: String
+    +unitPrice: Money
+  }
+  class ReservedService <<entity>> {
+    +quantity: int
+    +unitPriceSnapshot: Money
+  }
+  class Money <<value object>> {
+    +amount: BigDecimal
+    +currency: String
+    +add(other): Money
+  }
+
+  enum ReservationStatus {
+    PENDING_PAYMENT
+    CONFIRMED
+    CHECKED_IN
+    COMPLETED
+    CANCELLED
+    PAYMENT_FAILED
+  }
+  enum RoomStatus {
+    AVAILABLE
+    OCCUPIED
+    CLEANING
+    OUT_OF_SERVICE
+  }
+  enum PaymentStatus {
+    PENDING
+    SUCCESS
+    FAILED
+  }
+
+  class RatePlan <<Strategy Context>> {
+    +code: String
+    +calculateBase(roomType, period): Money
+  }
+  interface PricingStrategy <<Strategy>> {
+    +calculate(baseRate, period): Money
+  }
+  class StandardPricingStrategy
+  class SeasonalPricingStrategy
+  class LongStayPricingStrategy
+
+  interface ChargeComponent <<Component>> {
+    +total(): Money
+    +lines(): List<ChargeLine>
+  }
+  class BaseStayCharge <<Concrete Component>>
+  abstract class ServiceChargeDecorator <<Decorator>> {
+    -wrapped: ChargeComponent
+  }
+  class BreakfastChargeDecorator
+  class ParkingChargeDecorator
+  class SpaChargeDecorator
+
+  class ReservationEvent {
+    +eventId: UUID
+    +type: ReservationEventType
+    +occurredAt: Instant
+    +reservationId: UUID
+    +guestId: UUID
+  }
+  enum ReservationEventType {
+    CREATED
+    MODIFIED
+    CANCELLED
+    CHECKED_IN
+    CHECKED_OUT
+    REMINDER
+  }
+  interface ReservationObserver <<Observer>> {
+    +update(event): void
+  }
+  class GuestNotificationObserver
+  class AuditObserver
+}
+
+package "Ports and Infrastructure" {
+  interface ReservationRepository {
+    +findById(id): Reservation
+    +findBlocking(roomId, period): List<Reservation>
+    +save(reservation): Reservation
+  }
+  interface RoomRepository {
+    +findAvailable(criteria): List<Room>
+    +findByIdForUpdate(id): Room
+    +save(room): Room
+  }
+  interface GuestRepository
+  interface PaymentRepository
+  interface PaymentGateway {
+    +charge(amount, paymentData): GatewayResult
+  }
+  class SimulatedPaymentGateway
+}
+
+ReservationController --> BookingFacade
+RoomAdminController --> RoomManagementService
+GuestController --> GuestService
+StayController --> StayService
+
+BookingFacade --> AvailabilityService
+BookingFacade --> PricingService
+BookingFacade --> PaymentService
+BookingFacade --> ReservationRepository
+BookingFacade --> ReservationEventPublisher
+AvailabilityService --> RoomRepository
+AvailabilityService --> ReservationRepository
+RoomManagementService --> RoomRepository
+GuestService --> GuestRepository
+StayService --> ReservationRepository
+StayService --> RoomRepository
+StayService --> PaymentService
+StayService --> ReservationEventPublisher
+PaymentService --> PaymentGateway
+PaymentService --> PaymentRepository
+PaymentGateway <|.. SimulatedPaymentGateway
+
+Guest "1" o-- "0..*" GuestPreference
+Guest "1" <-- "0..*" Reservation
+RoomType "1" <-- "0..*" Room
+Room "1" <-- "0..*" Reservation
+Reservation *-- "1" StayPeriod
+Reservation o-- "0..*" Payment
+Reservation *-- "0..*" ReservedService
+ReservedService --> "1" AdditionalService
+Reservation --> "1" RatePlan
+RoomType --> Money
+Reservation --> Money
+Payment --> Money
+
+RatePlan o-- "1" PricingStrategy
+PricingStrategy <|.. StandardPricingStrategy
+PricingStrategy <|.. SeasonalPricingStrategy
+PricingStrategy <|.. LongStayPricingStrategy
+PricingService --> RatePlan
+
+ChargeComponent <|.. BaseStayCharge
+ChargeComponent <|.. ServiceChargeDecorator
+ServiceChargeDecorator o--> ChargeComponent : wraps
+ServiceChargeDecorator <|-- BreakfastChargeDecorator
+ServiceChargeDecorator <|-- ParkingChargeDecorator
+ServiceChargeDecorator <|-- SpaChargeDecorator
+PricingService ..> ChargeComponent : builds
+
+ReservationEventPublisher o-- "0..*" ReservationObserver
+ReservationObserver <|.. GuestNotificationObserver
+ReservationObserver <|.. AuditObserver
+ReservationEventPublisher ..> ReservationEvent
+
+note "FACADE\nBookingFacade provides one use-case entry and\ncoordinates availability, pricing, payment and events." as NFacade
+NFacade .. BookingFacade
+NFacade .. AvailabilityService
+NFacade .. PricingService
+NFacade .. PaymentService
+
+note "STRATEGY\nRatePlan delegates the base-price algorithm.\nNew rate plans do not change the booking flow." as NStrategy
+NStrategy .. RatePlan
+NStrategy .. PricingStrategy
+NStrategy .. StandardPricingStrategy
+NStrategy .. SeasonalPricingStrategy
+NStrategy .. LongStayPricingStrategy
+
+note "DECORATOR\nOptional service charges wrap the base stay charge.\nRuntime combinations avoid subclass explosion." as NDecorator
+NDecorator .. ChargeComponent
+NDecorator .. BaseStayCharge
+NDecorator .. ServiceChargeDecorator
+NDecorator .. BreakfastChargeDecorator
+NDecorator .. ParkingChargeDecorator
+NDecorator .. SpaChargeDecorator
+
+note "OBSERVER\nReservation events are broadcast to independent observers.\nThe final microservice version maps this concept to RabbitMQ." as NObserver
+NObserver .. ReservationEventPublisher
+NObserver .. ReservationObserver
+NObserver .. GuestNotificationObserver
+NObserver .. AuditObserver
+
+note right of ReservationRepository
+Overlap must be checked atomically:
+existing.checkIn < requested.checkOut
+and requested.checkIn < existing.checkOut
+end note
+@enduml
+

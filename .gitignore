@@ -1,0 +1,18 @@
+# Local course handout and temporary render files
+/SDT Project Details.pdf
+/tmp/
+/.codex-finalizer/
+/output/presentation-build/
+
+# Java and IDE output
+**/target/
+**/.classpath
+**/.project
+**/.settings/
+**/.idea/
+**/*.iml
+
+# Local configuration and secrets
+.env
+*.log
+

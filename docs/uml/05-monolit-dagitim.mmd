@@ -1,0 +1,12 @@
+flowchart LR
+  CLIENT["Istemci cihazi<br/>Tarayici / Postman"]
+
+  subgraph HOST["Tek sunucu / Docker Host"]
+    APP["hotel-app konteyneri<br/>Java :8080<br/>tek hotel-app.jar"]
+    DB[("hotel-db konteyneri<br/>PostgreSQL: tek ortak DB")]
+    VOL[("hotel-data volume")]
+  end
+
+  CLIENT -->|"HTTP :8080 arama / rezervasyon / yonetim"| APP
+  APP -->|"JDBC/SQL: tek transaction siniri"| DB
+  DB -->|"kalici veri"| VOL

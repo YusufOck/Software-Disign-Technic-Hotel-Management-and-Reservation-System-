@@ -1,0 +1,29 @@
+flowchart LR
+  U["Misafir / Otel personeli"]
+  GW["API Gateway"]
+  CMD["Rezervasyon Command + Saga<br/>otoriter hold / confirm"]
+  QRY["Musaitlik Query API + Projector<br/>okuma modeli"]
+  PAY["Odeme worker<br/>simule odeme"]
+  NOTIFY["Bildirim worker"]
+  MQ[["Event broker<br/>rezervasyon ve odeme olaylari"]]
+  WDB[("Booking write DB<br/>hold + overlap constraint")]
+  RDB[("Availability read DB<br/>projection")]
+  PDB[("Payment DB")]
+  NDB[("Notification DB")]
+
+  U -->|"HTTP komut / sorgu"| GW
+  GW -->|"POST / PUT / DELETE"| CMD
+  GW -->|"GET tarihli musaitlik"| QRY
+  CMD -->|"SQL: otoriter cakisma denetimi"| WDB
+  CMD -->|"ReservationRequested / PaymentRequested / Confirmed / Cancelled"| MQ
+  MQ -->|"PaymentRequested"| PAY
+  PAY -->|"SQL: sonuc"| PDB
+  PAY -->|"PaymentSucceeded / Failed"| MQ
+  MQ -->|"odeme sonucu: saga confirm / release"| CMD
+  MQ -->|"rezervasyon olaylari"| QRY
+  QRY -->|"projection yaz / oku"| RDB
+  MQ -->|"onay / iptal olayi"| NOTIFY
+  NOTIFY -->|"SQL: bildirim kaydi"| NDB
+
+  NOTE["Okuma modeli gecikmeli olabilir.<br/>Komut servisi write DB'de tekrar kontrol eder."]
+  NOTE -.-> QRY

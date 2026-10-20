@@ -1,0 +1,31 @@
+flowchart LR
+  U["Misafir / Otel personeli"]
+  DB[("Hotel DB<br/>Tum tablolarin tek sahibi")]
+
+  subgraph APP["Secenek A: Hotel Management App - tek Java uygulamasi, tek deploy"]
+    API["REST / UI adapter"]
+    ROOM["Oda ve oda tipi yonetimi"]
+    GUEST["Misafir yonetimi"]
+    BOOK["Rezervasyon ve musaitlik"]
+    PRICE["Fiyatlandirma kurallari"]
+    STAY["Check-in / Check-out"]
+    REM["Yaklasan konaklama zamanlayicisi"]
+    SIM["Odeme ve bildirim simulasyonu"]
+  end
+
+  U -->|"HTTP: arama / rezervasyon / yonetim"| API
+  API -->|"oda, tip, fiyat CRUD"| ROOM
+  API -->|"kayit ve gecmis"| GUEST
+  API -->|"arama / olustur / degistir / iptal"| BOOK
+  API -->|"konaklama islemi"| STAY
+  BOOK -->|"oda durumu ve tipi"| ROOM
+  BOOK -->|"tutar hesapla"| PRICE
+  BOOK -->|"misafir bilgisi"| GUEST
+  BOOK -->|"simule odeme ve onay"| SIM
+  STAY -->|"rezervasyon durumu"| BOOK
+  REM -->|"yaklasan konaklama bildirimi"| SIM
+  ROOM -->|"SQL"| DB
+  GUEST -->|"SQL"| DB
+  BOOK -->|"SQL: tek transaction"| DB
+  STAY -->|"SQL"| DB
+  SIM -->|"simulasyon kaydi"| DB

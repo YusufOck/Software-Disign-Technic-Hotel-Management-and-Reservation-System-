@@ -1,0 +1,35 @@
+@startuml
+title Secilen Final Mimari - Mikroservis / Dagitim Diyagrami (#7-9)
+left to right direction
+skinparam shadowing false
+
+node "Istemci cihazi" as Client {
+  artifact "Tarayici / Postman" as Browser
+}
+
+node "Yerel Docker Host\n(docker compose up --build --wait)" as Host {
+  node "hotel-core konteyneri\nSpring Boot :8080" as Core {
+    artifact "hotel-core.jar" as CoreJar
+  }
+  node "notification-service konteyneri\nSpring Boot :8081" as Notify {
+    artifact "notification-service.jar" as NotifyJar
+  }
+  queue "RabbitMQ konteyneri\nAMQP :5672" as Rabbit
+  database "core-db konteyneri\nPostgreSQL; sadece core erisir" as CoreDB
+  database "notification-db konteyneri\nPostgreSQL; sadece notification erisir" as NotifyDB
+  folder "core-data volume" as CoreVol
+  folder "notification-data volume" as NotifyVol
+  folder "rabbit-data volume" as RabbitVol
+}
+
+Browser --> Core : HTTP :8080\noda/misafir/rezervasyon
+Browser --> Notify : HTTP :8081\nbildirim kaydi sorgusu
+Core --> CoreDB : JDBC/SQL\nrezervasyon invariant'i
+Core --> Rabbit : AMQP publish\nrezervasyon olaylari
+Rabbit --> Notify : AMQP consume\nasenkron bildirim
+Notify --> NotifyDB : JDBC/SQL\nbildirim + eventId
+CoreDB --> CoreVol : kalici veri
+NotifyDB --> NotifyVol : kalici veri
+Rabbit --> RabbitVol : broker verisi
+
+@enduml

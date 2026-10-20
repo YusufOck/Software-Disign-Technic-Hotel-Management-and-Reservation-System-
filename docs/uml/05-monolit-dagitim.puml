@@ -1,0 +1,22 @@
+@startuml
+title Secenek A - Monolit / Dagitim Diyagrami (#6 mimari analizi)
+left to right direction
+skinparam shadowing false
+
+node "Istemci cihazi" as Client {
+  artifact "Tarayici / Postman" as Browser
+}
+
+node "Tek sunucu / Docker Host" as Host {
+  node "hotel-app konteyneri\n(Java, :8080)" as Monolith {
+    artifact "hotel-app.jar\noda + misafir + rezervasyon + odeme + bildirim" as Jar
+  }
+  database "hotel-db konteyneri\nPostgreSQL, tek ortak veritabani" as DB
+  folder "hotel-data volume" as Volume
+}
+
+Browser --> Monolith : HTTP :8080\narama / rezervasyon / yonetim
+Monolith --> DB : JDBC/SQL\ntek transaction siniri
+DB --> Volume : veriyi kalici sakla
+
+@enduml

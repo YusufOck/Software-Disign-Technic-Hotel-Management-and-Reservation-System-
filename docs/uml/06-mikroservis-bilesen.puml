@@ -1,0 +1,49 @@
+@startuml
+title Secilen Final Mimari - Mikroservis / Bilesen Diyagrami (#7-9)
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "Misafir / Otel Personeli" as User
+
+package "hotel-core service\n(bagimsiz Java/Spring Boot servisi)" as Core {
+  [Core REST API] as CoreAPI
+  [Oda / Oda Tipi / Misafir] as Catalog
+  [Musaitlik ve Rezervasyon] as Booking
+  [Fiyatlandirma / Odeme Simulasyonu] as PricePay
+  [Check-in / Check-out] as Stay
+  [Upcoming Stay Scheduler] as Reminder
+  [Event Publisher] as Publisher
+}
+
+package "notification-service\n(bagimsiz Java/Spring Boot servisi)" as Notify {
+  [Notification REST API] as NotifyAPI
+  [Event Consumer] as Consumer
+  [Bildirim Simulasyonu ve Kaydi] as Delivery
+}
+
+component "RabbitMQ\nbooking.events exchange\nnotification queue" as MQ <<broker>>
+database "core-db\n(oda, misafir, rezervasyon sahibi)" as CoreDB
+database "notification-db\n(bildirim ve event kimligi sahibi)" as NotifyDB
+
+User --> CoreAPI : HTTP - tum otel islemleri
+User --> NotifyAPI : HTTP - bildirim gecmisi
+CoreAPI --> Catalog : oda / misafir CRUD
+CoreAPI --> Booking : ara / olustur / degistir / iptal
+CoreAPI --> Stay : check-in / check-out
+Booking --> Catalog : oda ve misafir bilgisi
+Booking --> PricePay : fiyat / simule odeme
+Booking --> Publisher : ReservationCreated/\nChanged/Cancelled
+Stay --> Publisher : StayCheckedIn/Out
+Reminder --> Publisher : UpcomingStay
+Catalog --> CoreDB : SQL
+Booking --> CoreDB : SQL; cakismayi onleyen constraint
+PricePay --> CoreDB : SQL; odeme sonucu
+Stay --> CoreDB : SQL
+Publisher --> MQ : AMQP - olay yayinla
+MQ --> Consumer : AMQP - asenkron tuket
+Consumer --> Delivery : teslim et / tekrar dene
+Delivery --> NotifyDB : SQL; idempotent kayit
+NotifyAPI --> NotifyDB : SQL; gecmisi oku
+
+@enduml

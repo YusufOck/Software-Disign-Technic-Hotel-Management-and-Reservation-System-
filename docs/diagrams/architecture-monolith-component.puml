@@ -1,0 +1,37 @@
+@startuml
+title Modular Monolith - Component View
+skinparam componentStyle rectangle
+skinparam shadowing false
+actor Guest
+actor "Hotel Staff" as Staff
+
+component "Spring Boot Monolith" as App {
+  [REST API] as API
+  [Room Module] as Room
+  [Guest Module] as GuestModule
+  [Reservation Module] as Reservation
+  [Pricing Module] as Pricing
+  [Payment Module] as Payment
+  [Stay Module] as Stay
+  [Notification Module] as Notification
+}
+database "PostgreSQL\nSingle schema" as DB
+
+Guest --> API : HTTP/JSON
+Staff --> API : HTTP/JSON
+API --> Room : method calls
+API --> GuestModule : method calls
+API --> Reservation : method calls
+Reservation --> Room : availability
+Reservation --> Pricing : quote
+Reservation --> Payment : simulated charge
+Reservation --> Notification : in-process event
+Stay --> Reservation : lifecycle
+Stay --> Room : status update
+Room --> DB : JPA/JDBC
+GuestModule --> DB : JPA/JDBC
+Reservation --> DB : JPA/JDBC
+Payment --> DB : JPA/JDBC
+Notification --> DB : JPA/JDBC
+@enduml
+
