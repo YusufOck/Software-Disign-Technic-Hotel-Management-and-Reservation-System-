@@ -1,0 +1,66 @@
+@startuml
+title Check-in and Check-out - Current PoC
+autonumber
+
+actor Staff
+boundary HotelController as Controller
+control BookingService as Booking
+database HotelStore as Store
+entity Reservation
+control BookingEventPublisher as Publisher
+control AuditObserver as Audit
+control NotificationObserver as Notification
+
+Staff -> Controller: POST /api/reservations/{id}/check-in
+Controller -> Booking: checkIn(id)
+activate Booking
+Booking -> Store: synchronized(store), get(id)
+Store --> Booking: Reservation
+Booking -> Booking: is today inside [checkIn, checkOut)?
+
+alt date is invalid
+  Booking --> Controller: ConflictException
+  Controller --> Staff: 409 Conflict
+else date is valid
+  Booking -> Reservation: checkInGuest()
+  alt state is not CONFIRMED
+    Reservation --> Booking: IllegalTransitionException
+    Booking --> Controller: exception
+    Controller --> Staff: 409 Conflict
+  else state is CONFIRMED
+    note right of Reservation: State: CONFIRMED -> CHECKED_IN
+    Booking -> Publisher: publish(CHECKED_IN)
+    Publisher -> Audit: onBookingEvent(CHECKED_IN)
+    Publisher -> Notification: onBookingEvent(CHECKED_IN)
+    Booking --> Controller: Reservation(CHECKED_IN)
+    Controller --> Staff: 200 OK
+  end
+end
+deactivate Booking
+
+Staff -> Controller: POST /api/reservations/{id}/check-out
+Controller -> Booking: checkOut(id)
+activate Booking
+Booking -> Store: synchronized(store), get(id)
+Store --> Booking: Reservation
+Booking -> Reservation: checkOutGuest()
+
+alt state is not CHECKED_IN
+  Reservation --> Booking: IllegalTransitionException
+  Booking --> Controller: exception
+  Controller --> Staff: 409 Conflict
+else state is CHECKED_IN
+  note right of Reservation: State: CHECKED_IN -> COMPLETED
+  Booking -> Publisher: publish(COMPLETED)
+  Publisher -> Audit: onBookingEvent(COMPLETED)
+  Publisher -> Notification: onBookingEvent(COMPLETED)
+  Booking --> Controller: Reservation(COMPLETED)
+  Controller --> Staff: 200 OK
+end
+deactivate Booking
+
+note over Store,Reservation
+  The PoC does not store physical OCCUPIED/CLEANING room status.
+  RoomStatus currently contains only ACTIVE and OUT_OF_SERVICE.
+end note
+@enduml

@@ -1,0 +1,319 @@
+@startuml
+title Hotel Management and Reservation System - Integrated Class Diagram
+left to right direction
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+hide empty members
+
+package "hotel-core: current Spring Boot PoC" {
+  class HotelController {
+    +createRoomType()
+    +createRoom()
+    +createGuest()
+    +availability()
+    +createReservation()
+    +cancel()
+    +checkIn()
+    +checkOut()
+  }
+  class CatalogService {
+    +createRoomType()
+    +createRoom()
+    +updateRoomStatus()
+    +createGuest()
+  }
+  class BookingService {
+    +availableRooms(in, out, capacity)
+    +create(command): Reservation
+    +cancel(id): Reservation
+    +checkIn(id): Reservation
+    +checkOut(id): Reservation
+    +modify(id, request): Reservation <<planned>>
+  }
+  class CreateReservationCommand {
+    +guestId: UUID
+    +roomId: UUID
+    +checkIn: LocalDate
+    +checkOut: LocalDate
+    +extras: Set<Extra>
+    +simulatePaymentSuccess: boolean
+  }
+  class HotelStore {
+    +roomTypes: Map
+    +rooms: Map
+    +guests: Map
+    +reservations: Map
+  }
+  class Guest {
+    +id: UUID
+    +name: String
+    +email: String
+    +preferences: String
+  }
+  class RoomType {
+    +id: UUID
+    +name: String
+    +basePrice: BigDecimal
+    +capacity: int
+  }
+  class Room {
+    +id: UUID
+    +number: String
+    +roomTypeId: UUID
+    +status: RoomStatus
+  }
+  enum RoomStatus {
+    ACTIVE
+    OUT_OF_SERVICE
+  }
+  enum Extra {
+    BREAKFAST
+    PARKING
+  }
+  class Reservation {
+    +id: UUID
+    +guestId: UUID
+    +roomId: UUID
+    +checkIn: LocalDate
+    +checkOut: LocalDate
+    +extras: Set<Extra>
+    +quote: Quote
+    -state: ReservationState
+    +confirm()
+    +failPayment()
+    +cancel()
+    +checkInGuest()
+    +checkOutGuest()
+    +blocks(from, to): boolean
+  }
+  enum ReservationStatus {
+    PENDING_PAYMENT
+    CONFIRMED
+    PAYMENT_FAILED
+    CHECKED_IN
+    COMPLETED
+    CANCELLED
+  }
+  class Quote {
+    +total: BigDecimal
+    +strategy: String
+    +lines: List<PriceLine>
+  }
+  class PriceLine {
+    +description: String
+    +amount: BigDecimal
+  }
+
+  package "Strategy and Decorator" {
+    class PricingService {
+      +quote(type, in, out, extras): Quote
+    }
+    interface PricingStrategy {
+      +calculate(type, in, out): BigDecimal
+      +name(): String
+    }
+    class StandardPricingStrategy
+    class SeasonalPricingStrategy
+    interface PriceComponent {
+      +amount(): BigDecimal
+      +lines(): List<PriceLine>
+    }
+    class BaseRoomPrice
+    abstract class PriceDecorator {
+      -delegate: PriceComponent
+    }
+    class BreakfastDecorator
+    class ParkingDecorator
+  }
+
+  package "State" {
+    interface ReservationState {
+      +status(): ReservationStatus
+      +confirm(): ReservationState
+      +failPayment(): ReservationState
+      +cancel(): ReservationState
+      +checkIn(): ReservationState
+      +checkOut(): ReservationState
+    }
+    class PendingPaymentState
+    class ConfirmedState
+    class PaymentFailedState
+    class CheckedInState
+    class CompletedState
+    class CancelledState
+  }
+
+  package "Observer" {
+    class BookingEvent {
+      +reservationId: UUID
+      +guestId: UUID
+      +type: BookingEventType
+      +occurredAt: Instant
+    }
+    enum BookingEventType {
+      CREATED
+      CONFIRMED
+      PAYMENT_FAILED
+      CANCELLED
+      CHECKED_IN
+      COMPLETED
+    }
+    interface BookingObserver {
+      +onBookingEvent(event)
+    }
+    class BookingEventPublisher {
+      -observers: List<BookingObserver>
+      +publish(event)
+    }
+    class AuditObserver
+    class NotificationObserver
+    class Notification {
+      +id: UUID
+      +guestId: UUID
+      +reservationId: UUID
+      +message: String
+      +createdAt: Instant
+    }
+  }
+}
+
+package "Planned final-stage extension" {
+  interface RoomRepository <<planned>> {
+    +lockById(id): Room
+  }
+  interface ReservationRepository <<planned>> {
+    +existsActiveOverlap(roomId, in, out, excludeId): boolean
+  }
+  class SimulatedPaymentService <<planned>> {
+    +pay(quote): Payment
+  }
+  class Payment <<planned>> {
+    +id: UUID
+    +status: String
+    +amount: BigDecimal
+  }
+  class ReservationStateFactory <<planned>> {
+    +from(status): ReservationState
+  }
+  class RabbitRelayObserver <<planned>>
+  class RabbitMqEventGateway <<planned>>
+  class RabbitNotificationConsumer <<planned>>
+  class NotificationService <<planned>>
+  interface NotificationRepository <<planned>>
+}
+
+HotelController --> CatalogService
+HotelController --> BookingService
+HotelController --> NotificationObserver
+HotelController --> AuditObserver
+CatalogService --> HotelStore
+BookingService --> HotelStore
+BookingService --> CatalogService
+BookingService --> PricingService
+BookingService --> BookingEventPublisher
+BookingService --> CreateReservationCommand
+HotelStore o-- "0..*" RoomType
+HotelStore o-- "0..*" Room
+HotelStore o-- "0..*" Guest
+HotelStore o-- "0..*" Reservation
+RoomType "1" <-- "0..*" Room : type
+Guest "1" <-- "0..*" Reservation : guest
+Room "1" <-- "0..*" Reservation : room
+Room --> RoomStatus
+Reservation --> ReservationStatus
+Reservation "1" *-- "1" Quote
+Quote "1" *-- "1..*" PriceLine
+Reservation "1" o-- "0..*" Extra : selected
+
+PricingStrategy <|.. StandardPricingStrategy
+PricingStrategy <|.. SeasonalPricingStrategy
+PricingService --> PricingStrategy
+PricingService --> PriceComponent
+PriceComponent <|.. BaseRoomPrice
+PriceComponent <|.. PriceDecorator
+PriceDecorator o--> PriceComponent : wraps
+PriceDecorator <|-- BreakfastDecorator
+PriceDecorator <|-- ParkingDecorator
+
+Reservation --> ReservationState : delegates lifecycle behaviour
+ReservationState <|.. PendingPaymentState
+ReservationState <|.. ConfirmedState
+ReservationState <|.. PaymentFailedState
+ReservationState <|.. CheckedInState
+ReservationState <|.. CompletedState
+ReservationState <|.. CancelledState
+ReservationStateFactory ..> ReservationState
+
+BookingEventPublisher "1" o-- "2..*" BookingObserver : subscribers
+BookingEventPublisher --> BookingEvent
+BookingEvent --> BookingEventType
+BookingObserver <|.. AuditObserver
+BookingObserver <|.. NotificationObserver
+NotificationObserver o-- "0..*" Notification
+BookingObserver <|.. RabbitRelayObserver
+RabbitRelayObserver --> RabbitMqEventGateway
+RabbitMqEventGateway ..> RabbitNotificationConsumer : RabbitMQ
+RabbitNotificationConsumer --> NotificationService
+NotificationService --> NotificationRepository
+
+BookingService ..> RoomRepository : planned persistence
+BookingService ..> ReservationRepository : planned persistence
+BookingService ..> SimulatedPaymentService : planned payment boundary
+SimulatedPaymentService --> Payment
+
+note as StrategyNote
+<<Strategy>>
+PricingService selects StandardPricingStrategy or
+SeasonalPricingStrategy from the stay dates.
+This pattern is executable in the current PoC.
+end note
+StrategyNote .. PricingService
+StrategyNote .. PricingStrategy
+StrategyNote .. StandardPricingStrategy
+StrategyNote .. SeasonalPricingStrategy
+
+note as DecoratorNote
+<<Decorator>>
+BaseRoomPrice is wrapped with optional breakfast
+and parking price components at runtime.
+This pattern is executable in the current PoC.
+end note
+DecoratorNote .. PriceComponent
+DecoratorNote .. BaseRoomPrice
+DecoratorNote .. PriceDecorator
+DecoratorNote .. BreakfastDecorator
+DecoratorNote .. ParkingDecorator
+
+note as StateNote
+<<State>>
+Reservation delegates valid lifecycle transitions
+to concrete State classes instead of scattered switches.
+This pattern is executable in the current PoC.
+end note
+StateNote .. Reservation
+StateNote .. ReservationState
+StateNote .. PendingPaymentState
+StateNote .. ConfirmedState
+StateNote .. CheckedInState
+StateNote .. CompletedState
+StateNote .. CancelledState
+StateNote .. PaymentFailedState
+
+note as ObserverNote
+<<Observer>>
+BookingEventPublisher notifies multiple listeners.
+Current listeners: Audit and Notification.
+The final stage adds a RabbitMQ relay listener.
+end note
+ObserverNote .. BookingEventPublisher
+ObserverNote .. BookingObserver
+ObserverNote .. AuditObserver
+ObserverNote .. NotificationObserver
+ObserverNote .. RabbitRelayObserver
+
+note bottom of BookingService
+Current PoC: synchronized(HotelStore) makes check-and-create atomic in one JVM.
+Final version: enforce [checkIn, checkOut) non-overlap in PostgreSQL.
+An availability search alone is not a reservation guarantee.
+end note
+@enduml

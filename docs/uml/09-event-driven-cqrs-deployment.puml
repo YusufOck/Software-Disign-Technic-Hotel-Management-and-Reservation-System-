@@ -1,0 +1,35 @@
+@startuml
+title Option C - Event-Centred CQRS and Saga Deployment Diagram (Requirement 6)
+left to right direction
+skinparam shadowing false
+
+node "Client Device" as Client {
+  artifact "Browser / Postman" as Browser
+}
+node "Distributed Container Environment\n(example: Docker Compose)" as Host {
+  node "api-gateway" as Gateway
+  node "booking-command-saga" as Command
+  node "availability-query-projector" as Query
+  node "payment-worker" as Payment
+  node "notification-worker" as Notify
+  queue "event-broker\nRabbitMQ" as Broker
+  database "booking-write-db" as WriteDB
+  database "availability-read-db" as ReadDB
+  database "payment-db" as PayDB
+  database "notification-db" as NotifyDB
+}
+
+Browser --> Gateway : HTTP commands / queries
+Gateway --> Command : reservation command
+Gateway --> Query : availability query
+Command --> WriteDB : SQL; hold / confirm / atomic overlap check
+Command --> Broker : publish events
+Broker --> Payment : PaymentRequested
+Payment --> PayDB : simulated result
+Payment --> Broker : PaymentSucceeded / Failed
+Broker --> Command : continue saga
+Broker --> Query : confirmed / cancelled events
+Query --> ReadDB : update / read projection
+Broker --> Notify : notification event
+Notify --> NotifyDB : delivery record
+@enduml

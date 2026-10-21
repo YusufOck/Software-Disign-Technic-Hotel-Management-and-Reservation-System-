@@ -1,0 +1,78 @@
+@startuml
+title Reservation, Simulated Payment and Notification - Current PoC
+autonumber
+
+actor Guest
+boundary HotelController as Controller
+control BookingService as Booking
+control CatalogService as Catalog
+database HotelStore as Store
+control PricingService as Pricing
+entity Reservation
+control BookingEventPublisher as Publisher
+control AuditObserver as Audit
+control NotificationObserver as Notification
+
+Guest -> Controller: GET /api/rooms/availability\n(checkIn, checkOut, capacity)
+Controller -> Booking: availableRooms(in, out, capacity)
+activate Booking
+Booking -> Store: synchronized(store)
+Booking -> Catalog: roomType(roomTypeId)
+Booking -> Store: filter active rooms and\nblocking reservations
+Store --> Booking: available rooms
+Booking --> Controller: RoomResponse[]
+deactivate Booking
+Controller --> Guest: 200 OK
+
+Guest -> Controller: POST /api/reservations
+Controller -> Booking: create(command)
+activate Booking
+Booking -> Store: synchronized(store)
+Booking -> Catalog: guest(id), room(id), roomType(id)
+Catalog --> Booking: domain objects
+Booking -> Store: isAvailable(roomId, [in,out))\nrecheck while creating
+
+alt room out of service or stay overlaps
+  Store --> Booking: unavailable
+  Booking --> Controller: ConflictException
+  Controller --> Guest: 409 Conflict
+else room available
+  Store --> Booking: available
+  Booking -> Pricing: quote(roomType, in, out, extras)
+  note right of Pricing
+    Strategy selects the base pricing algorithm.
+    Decorators add breakfast and parking lines.
+  end note
+  Pricing --> Booking: Quote(total, strategy, lines)
+  Booking -> Reservation: new(..., PENDING_PAYMENT)
+  Booking -> Store: reservations.put(reservation)
+  Booking -> Publisher: publish(CREATED)
+  Publisher -> Audit: onBookingEvent(CREATED)
+  Publisher -> Notification: onBookingEvent(CREATED)
+  note right of Notification
+    CREATED is audited but does not
+    create a guest notification.
+  end note
+
+  alt simulatePaymentSuccess = true
+    Booking -> Reservation: confirm()
+    note right of Reservation: State: PENDING_PAYMENT -> CONFIRMED
+    Booking -> Publisher: publish(CONFIRMED)
+    Publisher -> Audit: onBookingEvent(CONFIRMED)
+    Publisher -> Notification: onBookingEvent(CONFIRMED)
+    Notification --> Notification: store "Reservation confirmed"
+    Booking --> Controller: Reservation(CONFIRMED)
+    Controller --> Guest: 201 Created
+  else simulatePaymentSuccess = false
+    Booking -> Reservation: failPayment()
+    note right of Reservation: State: PENDING_PAYMENT -> PAYMENT_FAILED
+    Booking -> Publisher: publish(PAYMENT_FAILED)
+    Publisher -> Audit: onBookingEvent(PAYMENT_FAILED)
+    Publisher -> Notification: onBookingEvent(PAYMENT_FAILED)
+    Notification --> Notification: store payment failure
+    Booking --> Controller: Reservation(PAYMENT_FAILED)
+    Controller --> Guest: 201 Created\nroom dates are released
+  end
+end
+deactivate Booking
+@enduml

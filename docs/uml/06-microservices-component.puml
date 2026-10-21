@@ -1,0 +1,45 @@
+@startuml
+title Selected Final Architecture - Microservices Component Diagram (Requirements 7-9)
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "Guest / Hotel Staff" as User
+package "hotel-core\n(independent Spring Boot service)" as Core {
+  [Core REST API] as CoreAPI
+  [Rooms / Room Types / Guests] as Catalog
+  [Availability and Reservations] as Booking
+  [Pricing / Payment Simulation] as PricePay
+  [Check-in / Check-out] as Stay
+  [Upcoming Stay Scheduler] as Reminder
+  [Event Publisher] as Publisher
+}
+package "notification-service\n(independent Spring Boot service)" as Notify {
+  [Notification REST API] as NotifyAPI
+  [Event Consumer] as Consumer
+  [Notification Simulation and History] as Delivery
+}
+component "RabbitMQ\nbooking.events exchange\nnotification queue" as MQ <<broker>>
+database "core-db\nrooms, guests and reservations" as CoreDB
+database "notification-db\nnotifications and processed event IDs" as NotifyDB
+
+User --> CoreAPI : HTTP hotel operations
+User --> NotifyAPI : HTTP notification history
+CoreAPI --> Catalog : room and guest management
+CoreAPI --> Booking : search / create / modify / cancel
+CoreAPI --> Stay : check-in / check-out
+Booking --> Catalog : room and guest data
+Booking --> PricePay : price and simulated payment
+Booking --> Publisher : reservation events
+Stay --> Publisher : stay events
+Reminder --> Publisher : upcoming-stay event
+Catalog --> CoreDB : SQL
+Booking --> CoreDB : SQL; non-overlap constraint
+PricePay --> CoreDB : SQL; payment result
+Stay --> CoreDB : SQL
+Publisher --> MQ : AMQP publish
+MQ --> Consumer : AMQP asynchronous consume
+Consumer --> Delivery : deliver / retry
+Delivery --> NotifyDB : SQL; idempotent insert
+NotifyAPI --> NotifyDB : SQL; read history
+@enduml

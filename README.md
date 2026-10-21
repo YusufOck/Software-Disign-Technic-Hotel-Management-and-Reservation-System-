@@ -1,12 +1,31 @@
 # Hotel Management and Reservation System
 
-SDT dersi, atanan 6. proje için iki aşamalı çalışma deposu. İlk sunumlar 1 Kasım 2026'da başlıyor. PDF'deki kesin kural ilk aşamada 1–6, dönem sonunda 7–9. maddelerin sunulmasıdır.
+This repository contains the two-stage work for Software Design Techniques Project 6. Requirements 1–6 belong to the midterm presentation; requirements 7–9 belong to the final presentation. Confirm the exact presentation date and duration with the lecturer or Moodle.
 
-## Nereden başlamalı?
+## Start here
 
-- [Türkçe analiz, puan matrisi, tasarım ve yol haritası](docs/SDT_HOTEL_PROJE_PLANI_TR.md)
-- [Düzenlenebilir UML ve mimari diyagram kaynakları](docs/uml/README.md)
-- [İlk aşama Spring Boot prototipi](hotel-core/README.md)
+- [Current decisions, status and remaining work](docs/PROJECT_MASTER_PLAN.md)
+- [Requirement-to-evidence status](docs/REQUIREMENTS_TRACEABILITY.md)
+- [Midterm report](docs/MIDTERM_REPORT.md)
+- [Presentation and live demo plan](docs/PRESENTATION_AND_DEMO_PLAN.md)
+- [Canonical UML sources](docs/uml/README.md)
+- [Executable Spring Boot PoC](hotel-core/README.md)
 
-Bu depodaki diyagramlar ve teknik kararlar birinci aşama için hazırlanmış çalışma taslaklarıdır. Sunum öncesi kodla eşleşme kontrolü yapılmalıdır. İkinci aşamadaki `notification-service`, RabbitMQ, Docker ve CI/CD işleri yol haritasındadır; henüz teslim edildiği iddia edilmez.
+## Current status
+
+The `hotel-core` module passed a clean build and all 6 tests on 21 October 2026. The selected patterns are Strategy, Decorator, State and Observer. Run the repeatable demo after starting the application:
+
+```powershell
+cd hotel-core
+.\mvnw.cmd clean test
+.\mvnw.cmd spring-boot:run
+```
+
+In a second terminal from the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\demo\midterm-demo.ps1
+```
+
+The midterm PoC is a Spring Boot REST backend with in-memory data. It does not include a frontend, PostgreSQL or Docker because those are not required to demonstrate requirements 1–6. The planned final stage adds PostgreSQL, a separate `notification-service`, RabbitMQ, Docker Compose, Postman/Newman and CI/CD.
 

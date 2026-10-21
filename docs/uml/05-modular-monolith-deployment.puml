@@ -1,0 +1,20 @@
+@startuml
+title Option A - Modular Monolith Deployment Diagram (Requirement 6)
+left to right direction
+skinparam shadowing false
+
+node "Client Device" as Client {
+  artifact "Browser / Postman" as Browser
+}
+node "Single Server / Docker Host" as Host {
+  node "hotel-app container\nJava :8080" as Monolith {
+    artifact "hotel-app.jar\nrooms + guests + reservations + payments + notifications" as Jar
+  }
+  database "hotel-db container\nPostgreSQL, shared application database" as DB
+  folder "hotel-data volume" as Volume
+}
+
+Browser --> Monolith : HTTP :8080\nsearch / booking / management
+Monolith --> DB : JDBC/SQL\nsingle transaction boundary
+DB --> Volume : persistent data
+@enduml

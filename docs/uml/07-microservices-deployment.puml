@@ -1,0 +1,33 @@
+@startuml
+title Selected Final Architecture - Microservices Deployment Diagram (Requirements 7-9)
+left to right direction
+skinparam shadowing false
+
+node "Client Device" as Client {
+  artifact "Browser / Postman" as Browser
+}
+node "Local Docker Host\n(docker compose up --build --wait)" as Host {
+  node "hotel-core container\nSpring Boot :8080" as Core {
+    artifact "hotel-core.jar" as CoreJar
+  }
+  node "notification-service container\nSpring Boot :8081" as Notify {
+    artifact "notification-service.jar" as NotifyJar
+  }
+  queue "RabbitMQ container\nAMQP :5672" as Rabbit
+  database "core-db container\nPostgreSQL; core access only" as CoreDB
+  database "notification-db container\nPostgreSQL; notification access only" as NotifyDB
+  folder "core-data volume" as CoreVol
+  folder "notification-data volume" as NotifyVol
+  folder "rabbit-data volume" as RabbitVol
+}
+
+Browser --> Core : HTTP :8080\nrooms / guests / reservations
+Browser --> Notify : HTTP :8081\nnotification history
+Core --> CoreDB : JDBC/SQL\nreservation invariant
+Core --> Rabbit : AMQP publish\nreservation events
+Rabbit --> Notify : AMQP consume\nasynchronous notifications
+Notify --> NotifyDB : JDBC/SQL\nnotification + event ID
+CoreDB --> CoreVol : persistent data
+NotifyDB --> NotifyVol : persistent data
+Rabbit --> RabbitVol : broker data
+@enduml

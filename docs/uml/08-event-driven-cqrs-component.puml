@@ -1,0 +1,32 @@
+@startuml
+title Option C - Event-Centred CQRS and Saga Component Diagram (Requirement 6)
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "Guest / Hotel Staff" as User
+component "API Gateway" as Gateway
+component "Reservation Command + Saga\n(authoritative hold and confirmation)" as Command
+component "Availability Query API + Projector\n(read model)" as Query
+component "Payment Worker\n(simulated payment)" as Payment
+component "Notification Worker" as Notify
+component "Event Broker\nReservationRequested, PaymentSucceeded/Failed,\nReservationConfirmed/Cancelled" as Broker
+database "Booking Write DB\nholds + non-overlap constraint" as WriteDB
+database "Availability Read DB\nprojection" as ReadDB
+database "Payment DB" as PayDB
+database "Notification DB" as NotifyDB
+
+User --> Gateway : HTTP commands and queries
+Gateway --> Command : reservation commands
+Gateway --> Query : date-based availability queries
+Command --> WriteDB : authoritative overlap check
+Command --> Broker : reservation and payment events
+Broker --> Payment : PaymentRequested
+Payment --> PayDB : store simulated result
+Payment --> Broker : PaymentSucceeded / Failed
+Broker --> Command : continue saga; confirm / release
+Broker --> Query : update read model
+Query --> ReadDB : write / read projection
+Broker --> Notify : confirmation / cancellation event
+Notify --> NotifyDB : store notification
+@enduml
